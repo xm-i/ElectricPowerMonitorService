@@ -99,14 +99,17 @@ namespace ElectricPowerMonitorService.ElectricPower {
 					}
 
 					this._electricPowerReceivedSubject.OnNext(((DateTime, int))(x!, result));
-				}).Catch((MeterReader.MeterReaderException e) => {
-					this._logger.LogWarning(e, "電力量監視時例外");
-					return null;
 				})
-				.Select(x => x == null ? null : (int?)0)
-				.Aggregate((x1, x2) => x1 == null ? 1 : x2 == null ? ++x1 : 0)
-				.Select(x => x >= 3 ? Observable.Empty<Unit>() : Observable.Return(Unit.Default))
-				.Subscribe(_ => { }, _ => {
+				.Catch((MeterReader.MeterReaderException e) => {
+					this._logger.LogWarning(e, "電力量監視時例外");
+					return Observable.Return<DateTime?>(null);
+				})
+				.Repeat()
+				.Select(x => x == null ? (int?)null : 0)
+				.Scan(0, (count, val) => val == null ? count + 1 : 0)
+				.Where(count => count >= 3)
+				.Take(1)
+				.Subscribe(_ => {
 					// 3回連続で失敗したら接続からやり直し
 					op.Dispose();
 					this.StartCore();

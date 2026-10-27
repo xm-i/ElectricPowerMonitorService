@@ -161,7 +161,7 @@ namespace ElectricPowerMonitorService.ElectricPower.Meter {
 
 				var frame = new EchoNetLiteFrame(bytes.SkipWhile(x => x != 0x10).ToArray());
 				if (!frame.Seoj.SequenceEqual(new byte[] { 0x02, 0x88, 0x01 }) || frame.Esv != 0x72 ||
-					frame.Epc != 0xE7) {
+					frame.Epc != 0xE7 || frame.Edt.Length < 4) {
 					return null; // 計測か通信の失敗
 				}
 
@@ -210,10 +210,37 @@ namespace ElectricPowerMonitorService.ElectricPower.Meter {
 			var result = new List<byte>();
 			while (true) {
 				var b = this._serialPort!.ReadByte();
+				if (b == -1) {
+					break;
+				}
 				if (b == 10) {
 					break;
 				}
 				result.Add((byte)b);
+
+				// ERXUDPヘッダーを検出してバイナリ部分を正確に読み取る
+				// ERXUDP <sender> <dest> <rport> <lport> <senderlla> <secured> <datalen> <data>
+				if (b == ' ' && result.Count >= 7) {
+					var text = Encoding.ASCII.GetString(result.ToArray());
+					if (text.StartsWith("ERXUDP ")) {
+						var parts = text.Split(' ');
+						if (parts.Length == 9 && parts[8] == "") {
+							if (int.TryParse(parts[7], System.Globalization.NumberStyles.HexNumber, null, out var dataLen) && dataLen > 0) {
+								for (var i = 0; i < dataLen; i++) {
+									var dataByte = this._serialPort.ReadByte();
+									if (dataByte == -1) break;
+									result.Add((byte)dataByte);
+								}
+								// データ末尾の改行 (\r\n など) を \n まで消費
+								while (true) {
+									var nextByte = this._serialPort.ReadByte();
+									if (nextByte == -1 || nextByte == 10) break;
+								}
+								break;
+							}
+						}
+					}
+				}
 			}
 
 			var resultArray = result.ToArray();

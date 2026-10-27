@@ -1,4 +1,5 @@
 using System;
+using System.Threading;
 using System.Threading.Tasks;
 
 using ElectricPowerMonitorService.ElectricPower;
@@ -25,18 +26,32 @@ namespace ElectricPowerMonitorService {
 				.BuildServiceProvider();
 
 			var epm = serviceProvider.GetService<ElectricPowerMonitor>();
-			var isCanceled = false;
-			Console.CancelKeyPress += (_, _) => {
-				epm.Dispose();
-				isCanceled = true;
+			var cts = new CancellationTokenSource();
+			Console.CancelKeyPress += (_, e) => {
+				e.Cancel = true;
+				cts.Cancel();
 			};
-			// 監視開始
-			await epm.StartAsync();
+			AppDomain.CurrentDomain.ProcessExit += (_, _) => {
+				cts.Cancel();
+			};
 
-			// 永久ループ
-			while (!isCanceled) {
-				Console.ReadLine();
+			// 監視開始
+			await epm!.StartAsync();
+
+			// 永久ループ（キャンセルトークンまたは終了シグナルまで待機）
+			while (!cts.IsCancellationRequested) {
+				var line = Console.ReadLine();
+				if (line == null) {
+					// stdin が EOF の場合（systemd サービス実行時等）は非同期で待機し、CPU空回りを防止
+					try {
+						await Task.Delay(Timeout.Infinite, cts.Token);
+					} catch (OperationCanceledException) {
+						break;
+					}
+				}
 			}
+
+			epm?.Dispose();
 		}
 	}
 }

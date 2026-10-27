@@ -17,36 +17,52 @@ namespace ElectricPowerMonitorService.ElectricPower.Meter.Object {
 		/// <param name="epc">ECHONET Liteプロパティ</param>
 		/// <param name="pdc">EDTのバイト数</param>
 		/// <param name="edt">プロパティ値データ</param>
-		public EchoNetLiteFrame(byte ehd1, byte ehd2, byte[] tid, byte[] seoj, byte[] deoj, byte esv, byte opc, byte epc, byte pdc, byte[] edt) {
+		public EchoNetLiteFrame(byte ehd1, byte ehd2, byte[]? tid, byte[]? seoj, byte[]? deoj, byte esv, byte opc, byte epc, byte pdc, byte[]? edt) {
 			this.Ehd1 = ehd1;
 			this.Ehd2 = ehd2;
-			this.Tid = tid;
-			this.Seoj = seoj;
-			this.Deoj = deoj;
+			this.Tid = tid ?? Array.Empty<byte>();
+			this.Seoj = seoj ?? Array.Empty<byte>();
+			this.Deoj = deoj ?? Array.Empty<byte>();
 			this.Esv = esv;
 			this.Opc = opc;
 			this.Epc = epc;
 			this.Pdc = pdc;
-			this.Edt = edt;
+			this.Edt = edt ?? Array.Empty<byte>();
 		}
 
 		/// <summary>
 		/// コンストラクタ
 		/// </summary>
 		/// <param name="frameBinaryData">フレームデータ</param>
-		public EchoNetLiteFrame(byte[] frameBinaryData) {
+		public EchoNetLiteFrame(byte[]? frameBinaryData) {
+			if (frameBinaryData == null || frameBinaryData.Length == 0) {
+				this.Tid = Array.Empty<byte>();
+				this.Seoj = Array.Empty<byte>();
+				this.Deoj = Array.Empty<byte>();
+				this.Edt = Array.Empty<byte>();
+				return;
+			}
+
 			var span = frameBinaryData.AsSpan();
-			this.Ehd1 = span[0];
-			this.Ehd2 = span[1];
-			this.Tid = span[2..4].ToArray();
-			this.Seoj = span[4..7].ToArray();
-			this.Deoj = span[7..10].ToArray();
-			this.Esv = span[10];
-			this.Opc = span[11];
-			this.Epc = span[12];
-			this.Pdc = span[13];
-			this.Edt = span[14..(14 + this.Pdc)].ToArray();
+			this.Ehd1 = span.Length > 0 ? span[0] : (byte)0;
+			this.Ehd2 = span.Length > 1 ? span[1] : (byte)0;
+			this.Tid = span.Length >= 4 ? span[2..4].ToArray() : (span.Length > 2 ? span[2..].ToArray() : Array.Empty<byte>());
+			this.Seoj = span.Length >= 7 ? span[4..7].ToArray() : (span.Length > 4 ? span[4..].ToArray() : Array.Empty<byte>());
+			this.Deoj = span.Length >= 10 ? span[7..10].ToArray() : (span.Length > 7 ? span[7..].ToArray() : Array.Empty<byte>());
+			this.Esv = span.Length > 10 ? span[10] : (byte)0;
+			this.Opc = span.Length > 11 ? span[11] : (byte)0;
+			this.Epc = span.Length > 12 ? span[12] : (byte)0;
+			this.Pdc = span.Length > 13 ? span[13] : (byte)0;
+
+			if (span.Length >= 14) {
+				var availableLength = span.Length - 14;
+				var lengthToCopy = Math.Min((int)this.Pdc, availableLength);
+				this.Edt = span.Slice(14, lengthToCopy).ToArray();
+			} else {
+				this.Edt = Array.Empty<byte>();
+			}
 		}
+
 		/// <summary>
 		/// ECHONET Lite電文ヘッダー1
 		/// </summary>
@@ -122,14 +138,14 @@ namespace ElectricPowerMonitorService.ElectricPower.Meter.Object {
 				this.Ehd1,
 				this.Ehd2
 			};
-			result.AddRange(this.Tid);
-			result.AddRange(this.Seoj);
-			result.AddRange(this.Deoj);
+			if (this.Tid != null) result.AddRange(this.Tid);
+			if (this.Seoj != null) result.AddRange(this.Seoj);
+			if (this.Deoj != null) result.AddRange(this.Deoj);
 			result.Add(this.Esv);
 			result.Add(this.Opc);
 			result.Add(this.Epc);
 			result.Add(this.Pdc);
-			result.AddRange(this.Edt);
+			if (this.Edt != null) result.AddRange(this.Edt);
 			return result.ToArray();
 		}
 
