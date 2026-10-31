@@ -17,11 +17,11 @@ node {
         keyFileVariable: 'SSH_KEY', \
         usernameVariable: 'SSH_USER')]) {
     stage('Deploy ElectricPowerMonitorService'){
-      sh 'scp -pr -i ${SSH_KEY} ./ElectricPowerMonitorService/bin/Release/net10.0/* ${SSH_USER}@home-server.localnet:/opt/electric-power-monitor-service'
+      sh 'scp -pr -i ${SSH_KEY} ./ElectricPowerMonitorService/bin/Release/net10.0/* ${SSH_USER}@home-server.internal:/opt/electric-power-monitor-service'
     }
 
     stage('Restart ElectricPowerMonitorService'){
-      sh 'ssh home-server.localnet -t -l ${SSH_USER} -i ${SSH_KEY} sudo service electric_power_monitor restart'
+      sh 'ssh home-server.internal -t -l ${SSH_USER} -i ${SSH_KEY} sudo service electric_power_monitor restart'
     }
   }
 
